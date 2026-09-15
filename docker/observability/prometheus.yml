@@ -1,0 +1,25 @@
+# Prometheus 抓取配置（基础版；完整指标分层与告警规则在 W6.3 落地，见《系统设计》§8.1）
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    env: dev
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # 业务服务 Actuator（SB-03：仅暴露 health/info 与 liveness/readiness）
+  - job_name: campus-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - campus-gateway:8080
+          - user-credit-service:8081
+          - trade-service:8082
+          - lostfound-service:8083
+          - errand-service:8084
+          - ai-assistant-service:8085
+          - notify-service:8086
+          - admin-service:8087

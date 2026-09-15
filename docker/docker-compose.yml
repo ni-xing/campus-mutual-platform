@@ -1,0 +1,387 @@
+# =============================================================================
+# 校园互助生活平台 · 本地开发编排（dev 环境，对应《部署设计》§2.1 dev 行）
+#
+#   常驻组合（5 容器，W0 即可跑通）：
+#     mysql / redis / nacos / sentinel / nginx
+#   业务组合（profile: app，W1 起逐个启用）：
+#     gateway + M1~M7，本地开发建议直接在 IDE 运行，容器仅用于整栈联调
+#   观测组合（见 docker-compose.obs.yml，profile: observability，按需启动）
+#
+#   内存预算（《部署设计》§2.2.4，prodtarget 2.88GB / 3GB 上限）：
+#     MySQL 500M / Redis 150M / Nacos 450M / Sentinel 200M / Nginx 30M
+#     Gateway 300M / M1·M3·M6·M7 160M / M2·M4 192M / M5 256M
+#   本地开发机内存充裕（15.7GB），内存上限保持与生产一致，便于提前发现超预算问题。
+#
+#   密钥：全部从同目录 .env 注入（L4 Secret），.env 不入 Git（见 .gitignore 与《安全设计》§6.3）
+# =============================================================================
+name: campus-dev
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  # ---------------------------------------------------------------- MySQL 8.0.36
+  mysql:
+    image: mysql:8.0.36
+    container_name: campus-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      # 应用层统一 UTC 存取（§4.1），避免时区漂移
+      - --default-time-zone=+00:00
+      - --innodb-buffer-pool-size=128M
+      - --max-connections=200
+      - --slow-query-log=1
+      - --long-query-time=1
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 初始化脚本按文件名顺序执行：00 建库 → 01 建账号 → 10~16 建表 → 17 审计保护 → 20 种子
+      - ./sql:/docker-entrypoint-initdb.d:ro
+      - ./data/backup:/backup
+    networks:
+      campus-net:
+        aliases: [mysql]
+    mem_limit: 500m
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    logging: *default-logging
+
+  # ---------------------------------------------------------------- Redis 7.2.5
+  redis:
+    image: redis:7.2.5
+    container_name: campus-redis
+    restart: always
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --maxmemory
+      - 150mb
+      - --maxmemory-policy
+      - allkeys-lru
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-aof:/data
+    networks:
+      campus-net:
+        aliases: [redis]
+    mem_limit: 150m
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    logging: *default-logging
+
+  # ---------------------------------------------------------------- Nacos 2.3.2（SB-01 鉴权开启）
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: campus-nacos
+    restart: always
+    environment:
+      MODE: standalone
+      # SB-01：开启鉴权 + 强口令（默认 nacos/nacos 禁用）
+      NACOS_AUTH_ENABLE: "true"
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN}
+      NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY}
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE}
+      JVM_XMS: 256m
+      JVM_XMX: 384m
+      JVM_XMN: 128m
+    ports:
+      - "127.0.0.1:8848:8848"
+      - "127.0.0.1:9848:9848"
+    volumes:
+      - nacos-logs:/home/nacos/logs
+    networks:
+      campus-net:
+        aliases: [nacos]
+    mem_limit: 450m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8848/nacos/v1/console/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    logging: *default-logging
+
+  # ---------------------------------------------------------------- Sentinel Dashboard 1.8.8（SB-02 口令）
+  sentinel:
+    image: bladex/sentinel-dashboard:1.8.8
+    container_name: campus-sentinel
+    restart: always
+    environment:
+      JAVA_OPTS: >-
+        -Dserver.port=8858
+        -Dcsp.sentinel.dashboard.server=localhost:8858
+        -Dproject.name=sentinel-dashboard
+        -Dcsp.sentinel.app.type=1
+        -Dsentinel.dashboard.auth.username=${SENTINEL_USER}
+        -Dsentinel.dashboard.auth.password=${SENTINEL_PASSWORD}
+        -Xmx160m
+    ports:
+      - "127.0.0.1:8858:8858"
+    networks:
+      campus-net:
+        aliases: [sentinel]
+    mem_limit: 200m
+    logging: *default-logging
+
+  # ---------------------------------------------------------------- Nginx 1.24（SB-04 server_tokens off）
+  nginx:
+    image: nginx:1.24
+    container_name: campus-nginx
+    restart: always
+    ports:
+      # 本地 dev 用 8088，避免与宿主机 80 端口占用冲突（prod 为 80/443，见《部署设计》§3.2.1）
+      - "127.0.0.1:${NGINX_HTTP_PORT:-8088}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - uploads:/usr/share/nginx/uploads
+    networks:
+      campus-net:
+        aliases: [nginx]
+    mem_limit: 30m
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *default-logging
+
+  # ================================================================
+  # 业务组合（profile: app）—— W1 起随实现进度逐个启用
+  # 本地开发推荐直接在 IDE 运行；容器方式用于整栈联调与压测
+  # ================================================================
+  gateway:
+    image: eclipse-temurin:21-jre
+    container_name: campus-gateway
+    profiles: ["app"]
+    restart: always
+    command: ["java", "-Xmx256m", "-jar", "/app/app.jar"]
+    environment:
+      TZ: Asia/Shanghai
+      SPRING_PROFILES_ACTIVE: dev
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      NACOS_HOST: nacos
+      JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - ../backend/gateway/target/gateway-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    networks:
+      campus-net:
+        aliases: [campus-gateway]
+    mem_limit: 300m
+    logging: *default-logging
+
+  user-credit-service:
+    image: eclipse-temurin:21-jre
+    container_name: campus-user-credit
+    profiles: ["app"]
+    restart: always
+    command: ["java", "-Xmx128m", "-jar", "/app/app.jar"]
+    environment:
+      TZ: Asia/Shanghai
+      DB_HOST: mysql
+      DB_USER: ${DB_USER_USER}
+      DB_PWD: ${DB_PWD_USER}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - ../backend/user-credit-service/target/user-credit-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      campus-net:
+        aliases: [user-credit-service]
+    mem_limit: 160m
+    logging: *default-logging
+
+  trade-service:
+    image: eclipse-temurin:21-jre
+    container_name: campus-trade
+    profiles: ["app"]
+    restart: always
+    command: ["java", "-Xmx160m", "-jar", "/app/app.jar"]
+    environment:
+      TZ: Asia/Shanghai
+      DB_HOST: mysql
+      DB_USER: ${DB_USER_TRADE}
+      DB_PWD: ${DB_PWD_TRADE}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - ../backend/trade-service/target/trade-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      campus-net:
+        aliases: [trade-service]
+    mem_limit: 192m
+    logging: *default-logging
+
+  lostfound-service:
+    image: eclipse-temurin:21-jre
+    container_name: campus-lostfound
+    profiles: ["app"]
+    restart: always
+    command: ["java", "-Xmx128m", "-jar", "/app/app.jar"]
+    environment:
+      TZ: Asia/Shanghai
+      DB_HOST: mysql
+      DB_USER: ${DB_USER_LOSTFOUND}
+      DB_PWD: ${DB_PWD_LOSTFOUND}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - ../backend/lostfound-service/target/lostfound-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      campus-net:
+        aliases: [lostfound-service]
+    mem_limit: 160m
+    logging: *default-logging
+
+  errand-service:
+    image: eclipse-temurin:21-jre
+    container_name: campus-errand
+    profiles: ["app"]
+    restart: always
+    command: ["java", "-Xmx160m", "-jar", "/app/app.jar"]
+    environment:
+      TZ: Asia/Shanghai
+      DB_HOST: mysql
+      DB_USER: ${DB_USER_ERRAND}
+      DB_PWD: ${DB_PWD_ERRAND}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - ../backend/errand-service/target/errand-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      campus-net:
+        aliases: [errand-service]
+    mem_limit: 192m
+    logging: *default-logging
+
+  ai-assistant-service:
+    image: eclipse-temurin:21-jre
+    container_name: campus-ai
+    profiles: ["app"]
+    restart: always
+    command: ["java", "-Xmx200m", "-jar", "/app/app.jar"]
+    environment:
+      TZ: Asia/Shanghai
+      DB_HOST: mysql
+      DB_USER: ${DB_USER_AI}
+      DB_PWD: ${DB_PWD_AI}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+    volumes:
+      - ../backend/ai-assistant-service/target/ai-assistant-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      campus-net:
+        aliases: [ai-assistant-service]
+    mem_limit: 256m
+    logging: *default-logging
+
+  notify-service:
+    image: eclipse-temurin:21-jre
+    container_name: campus-notify
+    profiles: ["app"]
+    restart: always
+    command: ["java", "-Xmx128m", "-jar", "/app/app.jar"]
+    environment:
+      TZ: Asia/Shanghai
+      DB_HOST: mysql
+      DB_USER: ${DB_USER_NOTIFY}
+      DB_PWD: ${DB_PWD_NOTIFY}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - ../backend/notify-service/target/notify-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      campus-net:
+        aliases: [notify-service]
+    mem_limit: 160m
+    logging: *default-logging
+
+  admin-service:
+    image: eclipse-temurin:21-jre
+    container_name: campus-admin
+    profiles: ["app"]
+    restart: always
+    command: ["java", "-Xmx128m", "-jar", "/app/app.jar"]
+    environment:
+      TZ: Asia/Shanghai
+      DB_HOST: mysql
+      DB_USER: ${DB_USER_ADMIN}
+      DB_PWD: ${DB_PWD_ADMIN}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - ../backend/admin-service/target/admin-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      campus-net:
+        aliases: [admin-service]
+    mem_limit: 160m
+    logging: *default-logging
+
+networks:
+  campus-net:
+    name: campus-net
+    driver: bridge
+    ipam:
+      config:
+        # 显式固定网段，禁 Docker 随机分配（《安全设计》§5.1 CIDR 建议值）
+        - subnet: 172.28.0.0/16
+
+volumes:
+  mysql-data:
+  redis-aof:
+  nacos-logs:
+  uploads:

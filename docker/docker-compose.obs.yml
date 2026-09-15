@@ -1,0 +1,91 @@
+# =============================================================================
+# 观测组合（observability profile，按需启动，约 800MB）
+# 依据《部署设计》§2.2.5 / 《系统设计》§8：Metrics / Logs / Traces 三支柱
+#
+#   启动：docker compose -f docker-compose.yml -f docker-compose.obs.yml --profile observability up -d
+#   停止：docker compose -f docker-compose.yml -f docker-compose.obs.yml --profile observability down
+#
+#   预算：Prometheus 250M / Grafana 200M / Zipkin 150M / Loki+Promtail 200M
+#   注意：演示期约束「压测不得与观测组合同时全开」（《系统设计》§5.5.4）
+#   完整 Dashboard（6 个）与告警规则 AL-01~09 在 W6.3 落地
+# =============================================================================
+name: campus-dev
+
+services:
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: campus-prometheus
+    profiles: ["observability"]
+    restart: always
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      campus-net:
+        aliases: [prometheus]
+    mem_limit: 250m
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: campus-grafana
+    profiles: ["observability"]
+    restart: always
+    environment:
+      # SB-02 同口径：控制台口令强制设置，禁默认 admin/admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      campus-net:
+        aliases: [grafana]
+    mem_limit: 200m
+
+  zipkin:
+    image: openzipkin/zipkin:3.4.0
+    container_name: campus-zipkin
+    profiles: ["observability"]
+    restart: always
+    environment:
+      STORAGE_TYPE: mem
+    ports:
+      - "127.0.0.1:9411:9411"
+    networks:
+      campus-net:
+        aliases: [zipkin]
+    mem_limit: 150m
+
+  loki:
+    image: grafana/loki:3.1.0
+    container_name: campus-loki
+    profiles: ["observability"]
+    restart: always
+    command: ["-config.file=/etc/loki/loki-config.yml"]
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./observability/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    networks:
+      campus-net:
+        aliases: [loki]
+    mem_limit: 200m
+
+networks:
+  campus-net:
+    name: campus-net
+    external: true
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  loki-data:

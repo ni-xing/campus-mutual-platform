@@ -1,0 +1,30 @@
+# ---- 构建产物 ----
+target/
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+
+# ---- IDE ----
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# ---- 环境与密钥（红线：L4 Secret 一律不入库，《安全设计》§6.3）----
+.env
+.env.local
+*.env
+!*.env.example
+**/application-local.yml
+**/application-prod.yml
+
+# ---- 本地运行产物 ----
+logs/
+*.log
+docker/data/
+docker/logs/
+
+# ---- 前端 ----
+node_modules/
+dist/
+.vite/
