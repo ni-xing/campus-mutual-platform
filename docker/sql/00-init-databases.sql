@@ -5,13 +5,15 @@
 -- =============================================================
 SET NAMES utf8mb4;
 
-CREATE DATABASE IF NOT EXISTS `user_db`      DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci COMMENT 'M1 用户与信用';
-CREATE DATABASE IF NOT EXISTS `trade_db`     DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci COMMENT 'M2 二手交易（含余额支付）';
-CREATE DATABASE IF NOT EXISTS `lostfound_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci COMMENT 'M3 失物招领';
-CREATE DATABASE IF NOT EXISTS `errand_db`    DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci COMMENT 'M4 跑腿拼单';
-CREATE DATABASE IF NOT EXISTS `ai_db`        DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci COMMENT 'M5 AI 助手';
-CREATE DATABASE IF NOT EXISTS `notify_db`    DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci COMMENT 'M6 通知';
-CREATE DATABASE IF NOT EXISTS `admin_db`     DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci COMMENT 'M7 平台管理';
+-- 注意：MySQL 的 CREATE DATABASE 不支持 COMMENT 子句（仅表/列支持），
+-- 库级说明以 SQL 注释承载；写成 COMMENT '...' 会导致初始化脚本 1064 中断。
+CREATE DATABASE IF NOT EXISTS `user_db`      DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; -- M1 用户与信用
+CREATE DATABASE IF NOT EXISTS `trade_db`     DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; -- M2 二手交易（含余额支付）
+CREATE DATABASE IF NOT EXISTS `lostfound_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; -- M3 失物招领
+CREATE DATABASE IF NOT EXISTS `errand_db`    DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; -- M4 跑腿拼单
+CREATE DATABASE IF NOT EXISTS `ai_db`        DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; -- M5 AI 助手
+CREATE DATABASE IF NOT EXISTS `notify_db`    DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; -- M6 通知
+CREATE DATABASE IF NOT EXISTS `admin_db`     DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; -- M7 平台管理
 
 -- ngram 全文解析器：MySQL 8 内置，用于替代 ES 的关键词检索（§3.1.5 / O3）
 -- 内置分词器 ngram_token_size 默认 2，本地 dev 保持默认；生产如调优需写入 mysqld 配置并重启

@@ -6,6 +6,7 @@ W0 容器编排与密钥模板生成器
 用法：python tools/gen_docker.py
 说明：本地 dev 用（端口绑 127.0.0.1）；prod 参数由部署 checklist 在 W6.6 覆盖。
 """
+import base64
 import os
 import secrets
 import string
@@ -777,7 +778,10 @@ env = FILES['.env.example']
 repl = {
     'change_me_root': rnd(24) + '@R',
     'change_me_redis_24chars_min': rnd(30),
-    'change_me_base64_token_at_least_32_bytes': secrets.token_urlsafe(48),
+    # NACOS_AUTH_TOKEN 必须是【标准】Base64（解码后 >= 32 字节）。
+    # 注意不能用 token_urlsafe：其 '-'/''_' 字符 Java Base64.Decoder 不认，
+    # 会导致 Nacos 2.3.2 开鉴权时 PrometheusAuthFilter 初始化失败、容器崩溃循环。
+    'change_me_base64_token_at_least_32_bytes': base64.b64encode(secrets.token_bytes(48)).decode('ascii'),
     'nacos_identity_key': 'campus-identity-key',
     'nacos_identity_value': rnd(24),
     'change_me_nacos': rnd(20) + '@N',
