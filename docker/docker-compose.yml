@@ -65,6 +65,9 @@ services:
     image: redis:7.2.5
     container_name: campus-redis
     restart: always
+    environment:
+      # healthcheck 需要：$REDIS_PASSWORD 仅在容器环境变量中存在时才能被 CMD-SHELL 展开
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     command:
       - redis-server
       - --appendonly
