@@ -2,17 +2,19 @@
   <div class="site">
     <header class="topbar">
       <div class="bar">
+        <router-link class="me" :to="auth.token ? '/me' : '/login'" title="个人中心">
+          <span class="me-ava">{{ auth.token ? (auth.user?.nickname || '我')[0] : '生' }}</span>
+          <span class="me-label">{{ auth.token ? (auth.user?.nickname || '个人中心') : '个人中心' }}</span>
+        </router-link>
         <router-link class="brand" to="/">搭把手<em>。</em></router-link>
-        <span class="brand-sub">校园互助布告栏</span>
-        <nav v-if="isLanding" class="nav-links" aria-label="主导航">
-          <a href="#market">二手集市</a>
-          <a href="#lost">失物招领</a>
-          <a href="#errand">跑腿拼单</a>
-          <a href="#ai">AI 助手</a>
+        <nav class="nav-links" aria-label="板块导航">
+          <router-link to="/market">二手集市</router-link>
+          <router-link to="/lost">失物招领</router-link>
+          <router-link to="/errand">跑腿拼单</router-link>
+          <router-link to="/ai">AI 助手</router-link>
         </nav>
         <span class="env-tag">模拟环境</span>
         <router-link v-if="!auth.token" class="bar-btn" to="/login">登录 / 注册</router-link>
-        <router-link v-else class="bar-btn" to="/board">进入布告栏</router-link>
       </div>
     </header>
     <router-view />
@@ -20,13 +22,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 
-const route = useRoute()
 const auth = useAuthStore()
-const isLanding = computed(() => route.path === '/')
 </script>
 
 <style>
@@ -46,12 +44,32 @@ const isLanding = computed(() => route.path === '/')
   gap: 14px;
   height: 60px;
 }
+
+/* 左上角个人中心 */
+.me {
+  display: flex; align-items: center; gap: 7px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 20px;
+  border: 1.5px solid var(--line);
+  background: #fff;
+}
+.me:hover { border-color: var(--ink); text-decoration: none; }
+.me-ava {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--board); color: #F2F0E8;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-hand); font-size: 13px; font-weight: 700;
+}
+.me-label { font-size: 13px; color: var(--charcoal); font-weight: 600; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .brand { font-family: var(--font-hand); font-weight: 700; font-size: 23px; color: var(--charcoal); }
 .brand em { font-style: normal; color: var(--ink); }
-.brand-sub { font-size: 12.5px; color: var(--muted); }
-.nav-links { display: flex; gap: 20px; margin-left: 18px; font-size: 14.5px; }
+
+.nav-links { display: flex; gap: 20px; margin-left: 6px; font-size: 14.5px; }
 .nav-links a { color: var(--charcoal); }
 .nav-links a:hover { color: var(--ink); text-decoration: none; }
+.nav-links a.router-link-active { color: var(--ink); font-weight: 700; }
+
 .env-tag {
   margin-left: auto;
   font-size: 12px;
@@ -84,6 +102,6 @@ const isLanding = computed(() => route.path === '/')
 }
 
 @media (max-width: 760px) {
-  .nav-links, .brand-sub { display: none; }
+  .nav-links, .me-label, .brand-sub { display: none; }
 }
 </style>

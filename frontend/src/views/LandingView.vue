@@ -6,8 +6,8 @@
         <h1>宿舍楼下的事，<br>就在<span class="hand-note">楼下</span>解决。</h1>
         <p class="lede">闲置流转、失物找回、拼车拼单——把需求贴上布告栏，等对面楼的人搭把手。不用加好友，不用拉群，留言即达。</p>
         <div class="hero-cta">
-          <router-link class="btn hero-btn" :to="auth.token ? '/board' : '/login?mode=register'">发布第一条布告</router-link>
-          <a class="btn hero-btn yellow" href="#market">先逛逛集市</a>
+          <router-link class="btn hero-btn" to="/login?mode=register">发布第一条布告</router-link>
+          <router-link class="btn hero-btn yellow" to="/market">先逛逛集市</router-link>
         </div>
       </div>
       <div class="board" aria-label="布告栏示例">
@@ -52,22 +52,26 @@
           <h3>二手集市</h3>
           <p>毕业季甩卖的、换宿舍出不掉的，都贴在这里。按楼栋浏览，下楼就能取。</p>
           <p class="sample">「kindle 3 代，9 成新，4 号楼 502 自取」</p>
+          <router-link class="sec-link" to="/market">去逛逛</router-link>
         </section>
         <section id="lost" class="sec lost">
           <span class="stamp-big" aria-hidden="true">急</span>
           <h3>失物招领</h3>
           <p>捡到的贴出来等失主，丢了的挂上去等消息。校园卡、耳机、钥匙，最快的 20 分钟就回家。</p>
           <p class="sample">「一食堂三楼捡到蓝牙耳机，白色充电盒」</p>
+          <router-link class="sec-link" to="/lost">找找看</router-link>
         </section>
         <section id="errand" class="sec errand">
           <h3>跑腿拼单</h3>
           <p>顺路带个快递、拼一车去高铁站、凑单点奶茶——谁顺路谁来接，一块钱也是人情。</p>
           <p class="sample">「明早 8 点有谁去南门取快递？帮我捎一个」</p>
+          <router-link class="sec-link" to="/errand">喊个人</router-link>
         </section>
         <section id="ai" class="sec ai">
           <h3>AI 助手</h3>
           <p>说不出想要什么？告诉它预算和用途，它帮你盯帖子、比价格、提醒你出手时机。</p>
           <p class="sample">「帮我留意 200 以内的二手显示器，到了叫我」</p>
+          <router-link class="sec-link" to="/ai">使唤它</router-link>
         </section>
       </div>
     </section>
@@ -98,7 +102,7 @@
     <section class="cta">
       <h2>把你的布告贴上来</h2>
       <p>楼下永远有人在看布告栏，差的就是你这一张。</p>
-      <router-link class="btn hero-btn yellow" :to="auth.token ? '/board' : '/login?mode=register'">贴出第一条布告</router-link>
+      <router-link class="btn hero-btn yellow" to="/login?mode=register">贴出第一条布告</router-link>
     </section>
 
     <footer class="foot">
@@ -109,9 +113,6 @@
 </template>
 
 <script setup>
-import { useAuthStore } from '../stores/auth'
-
-const auth = useAuthStore()
 const tickerItems = [
   '李同学刚发布了：考研数学全套资料 ¥40',
   '你的校园卡在体育馆前台被捡到了',
@@ -235,6 +236,14 @@ const tickerItems = [
 .sec.ai { background: var(--board); color: #F2F0E8; }
 .sec.ai .sample { color: #BFD6C9; }
 .sec.ai p { color: #D7DFD8; }
+.sec-link {
+  position: absolute; right: 20px; bottom: 16px;
+  font-size: 13px; font-weight: 700;
+}
+.sec.market .sec-link, .sec.lost .sec-link { color: var(--ink); }
+.sec.errand .sec-link { color: var(--ink); }
+.sec.ai .sec-link { color: #FFD84D; }
+.sec-link:hover { text-decoration: underline; }
 
 /* ---------- 三步 ---------- */
 .steps { padding: 64px 24px 84px; }

@@ -53,7 +53,7 @@ async function submit() {
   try {
     const res = await api('/api/v1/auth/register', 'POST', { ...form, privacyAgreed: agree.value })
     auth.setSession(res.data.token, res.data.user)
-    router.replace('/board')
+    router.replace('/')
   } catch (e) {
     err.value = e.message
   } finally {
