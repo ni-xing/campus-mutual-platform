@@ -155,6 +155,7 @@ CREATE TABLE `t_goods` (
   `stock` INT NOT NULL DEFAULT 1 COMMENT '库存（单库存固定 1）',
   `status` VARCHAR(20) NOT NULL DEFAULT 'LISTED' COMMENT '状态：LISTED/SOLD/OFFSHELF/DELETED',
   `audit_status` VARCHAR(20) NOT NULL DEFAULT 'PASSED' COMMENT '复审：PASSED/REJECTED',
+  `view_count` INT NOT NULL DEFAULT 0 COMMENT '浏览量（Redis 自增 + 定时任务回写，W2）',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本',
 """ + AUDIT_COLS + """
   PRIMARY KEY (`id`),
@@ -195,6 +196,7 @@ CREATE TABLE `t_balance_account` (
   `user_id` BIGINT NOT NULL COMMENT '归属用户',
   `balance` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '可用余额',
   `frozen` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '冻结额',
+  `points` INT NOT NULL DEFAULT 0 COMMENT '交易积分（订单金额 1% 向下取整，W2）',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本',
 """ + AUDIT_COLS + """
   PRIMARY KEY (`id`),

@@ -32,6 +32,16 @@ spring:
                 redis-rate-limiter.replenishRate: 60
                 redis-rate-limiter.burstCapacity: 120
                 key-resolver: "#{@ipKeyResolver}"
+        - id: trade
+          uri: lb://trade-service
+          predicates:
+            - Path=/api/v1/goods/**,/api/v1/orders/**,/api/v1/trade/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 60
+                redis-rate-limiter.burstCapacity: 120
+                key-resolver: "#{@ipKeyResolver}"
       # —— 全局限流：500 QPS（默认过滤器，全部路由生效）——
       default-filters:
         - name: RequestRateLimiter

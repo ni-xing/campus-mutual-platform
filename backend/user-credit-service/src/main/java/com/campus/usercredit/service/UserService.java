@@ -56,8 +56,8 @@ public class UserService {
         return vo;
     }
 
-    /** 内部工具：按 ID 查账号（供信用回流等场景复用） */
-    UserAccount requireUser(Long userId) {
+    /** 内部工具：按 ID 查账号（供信用回流 / 内部用户快照等场景复用） */
+    public UserAccount requireUser(Long userId) {
         UserAccount user = userAccountMapper.selectById(userId);
         if (user == null) {
             throw new BizException(ErrorCode.PARAM_INVALID, "用户不存在");
