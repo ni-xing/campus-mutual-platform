@@ -50,6 +50,14 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: Asia/Shanghai
+      # W1 修复：01-init-users.sh 建号需要 7 个业务账号密码（W0 漏配导致 init 静默 skip）
+      DB_PWD_USER: ${DB_PWD_USER}
+      DB_PWD_TRADE: ${DB_PWD_TRADE}
+      DB_PWD_LOSTFOUND: ${DB_PWD_LOSTFOUND}
+      DB_PWD_ERRAND: ${DB_PWD_ERRAND}
+      DB_PWD_AI: ${DB_PWD_AI}
+      DB_PWD_NOTIFY: ${DB_PWD_NOTIFY}
+      DB_PWD_ADMIN: ${DB_PWD_ADMIN}
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
@@ -785,32 +793,38 @@ for rel, content in FILES.items():
     count += 1
 
 # 生成实际 .env（随机强口令），已 gitignore
-alphabet = string.ascii_letters + string.digits + "_-"
-def rnd(n=28):
-    return ''.join(secrets.choice(alphabet) for _ in range(n))
+# W1 修复：.env 幂等生成——已存在则保留（否则每次重跑生成器会轮换全部密钥，
+# 导致与运行中容器/Nacos 初始化值不一致，出现 Access denied / user not found）
+env_path = os.path.join(D, '.env')
+if os.path.exists(env_path):
+    print('  - .env （已存在，保留现有密钥不轮换；如需重置请先删除 .env）')
+else:
+    alphabet = string.ascii_letters + string.digits + "_-"
+    def rnd(n=28):
+        return ''.join(secrets.choice(alphabet) for _ in range(n))
 
-env = FILES['.env.example']
-repl = {
-    'change_me_root': rnd(24) + '@R',
-    'change_me_redis_24chars_min': rnd(30),
-    # NACOS_AUTH_TOKEN 必须是【标准】Base64（解码后 >= 32 字节）。
-    # 注意不能用 token_urlsafe：其 '-'/''_' 字符 Java Base64.Decoder 不认，
-    # 会导致 Nacos 2.3.2 开鉴权时 PrometheusAuthFilter 初始化失败、容器崩溃循环。
-    'change_me_base64_token_at_least_32_bytes': base64.b64encode(secrets.token_bytes(48)).decode('ascii'),
-    'nacos_identity_key': 'campus-identity-key',
-    'nacos_identity_value': rnd(24),
-    'change_me_nacos': rnd(20) + '@N',
-    'change_me_sentinel': rnd(20) + '@S',
-    'change_me_grafana': rnd(20) + '@G',
-    'change_me_jwt_secret_at_least_32_chars_long': rnd(64),
-    'sk-change_me': 'sk-REPLACE_WITH_DASHSCOPE_KEY',
-    'change_me': rnd(24) + '@D',
-    'DB_PWD_LOSTFOUND_=change_me\n': 'DB_PWD_LOSTFOUND_=unused_legacy_key\n',
-}
-for k, v in repl.items():
-    env = env.replace(k, v)
-write('.env', env)
-count += 1
+    env = FILES['.env.example']
+    repl = {
+        'change_me_root': rnd(24) + '@R',
+        'change_me_redis_24chars_min': rnd(30),
+        # NACOS_AUTH_TOKEN 必须是【标准】Base64（解码后 >= 32 字节）。
+        # 注意不能用 token_urlsafe：其 '-'/''_' 字符 Java Base64.Decoder 不认，
+        # 会导致 Nacos 2.3.2 开鉴权时 PrometheusAuthFilter 初始化失败、容器崩溃循环。
+        'change_me_base64_token_at_least_32_bytes': base64.b64encode(secrets.token_bytes(48)).decode('ascii'),
+        'nacos_identity_key': 'campus-identity-key',
+        'nacos_identity_value': rnd(24),
+        'change_me_nacos': rnd(20) + '@N',
+        'change_me_sentinel': rnd(20) + '@S',
+        'change_me_grafana': rnd(20) + '@G',
+        'change_me_jwt_secret_at_least_32_chars_long': rnd(64),
+        'sk-change_me': 'sk-REPLACE_WITH_DASHSCOPE_KEY',
+        'change_me': rnd(24) + '@D',
+        'DB_PWD_LOSTFOUND_=change_me\n': 'DB_PWD_LOSTFOUND_=unused_legacy_key\n',
+    }
+    for k, v in repl.items():
+        env = env.replace(k, v)
+    write('.env', env)
+    count += 1
 
 # 备份目录占位
 os.makedirs(os.path.join(D, 'data', 'backup'), exist_ok=True)

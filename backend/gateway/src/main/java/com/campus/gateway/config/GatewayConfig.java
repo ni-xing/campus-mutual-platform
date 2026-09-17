@@ -40,8 +40,9 @@ public class GatewayConfig {
         };
     }
 
-    /** 全局限流键（500 QPS，单机全站水位） */
+    /** 全局限流键（500 QPS，单机全站水位）；@Primary 仅为消除 GatewayAutoConfiguration 默认注入歧义 */
     @Bean
+    @org.springframework.context.annotation.Primary
     public KeyResolver globalKeyResolver() {
         return exchange -> Mono.just("global");
     }

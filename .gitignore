@@ -28,3 +28,10 @@ docker/logs/
 node_modules/
 dist/
 .vite/
+
+# W1 前端本地产物
+frontend/node_modules/
+frontend/.npm-cache/
+frontend/npm_install.txt
+frontend/vite_dev.txt
+docker/*.txt

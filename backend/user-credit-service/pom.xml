@@ -49,6 +49,11 @@
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-crypto</artifactId>
     </dependency>
+    <!-- AOP（common 的 IdempotentAspect @Around 需要 aspectjweaver；common 中 aop starter 为 optional） -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-aop</artifactId>
+    </dependency>
     <!-- JWT 签发（common 的 JwtSupport 为 optional，使用方自行声明） -->
     <dependency>
       <groupId>io.jsonwebtoken</groupId>

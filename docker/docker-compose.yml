@@ -32,6 +32,14 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: Asia/Shanghai
+      # W1 修复：01-init-users.sh 建号需要 7 个业务账号密码（W0 漏配导致 init 静默 skip）
+      DB_PWD_USER: ${DB_PWD_USER}
+      DB_PWD_TRADE: ${DB_PWD_TRADE}
+      DB_PWD_LOSTFOUND: ${DB_PWD_LOSTFOUND}
+      DB_PWD_ERRAND: ${DB_PWD_ERRAND}
+      DB_PWD_AI: ${DB_PWD_AI}
+      DB_PWD_NOTIFY: ${DB_PWD_NOTIFY}
+      DB_PWD_ADMIN: ${DB_PWD_ADMIN}
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci

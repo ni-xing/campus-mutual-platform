@@ -2,13 +2,14 @@ package com.campus.common.idempotent;
 
 import com.campus.common.exception.BizException;
 import com.campus.common.exception.ErrorCode;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Duration;
 
@@ -17,6 +18,9 @@ import java.time.Duration;
  *
  * <p>SETNX 占位成功 → 执行业务；占位失败 → 返回 C000004「处理中请稍候」，前端退避重查；
  * 业务失败撤销占位，允许同键重试。
+ *
+ * <p>注：request 经 RequestContextHolder 懒获取（HttpServletRequest 是请求作用域对象，
+ * 不能作为 bean 构造参数注入）。
  */
 @Slf4j
 @Aspect
@@ -26,7 +30,6 @@ public class IdempotentAspect {
     private static final String KEY_PREFIX = "campus:idem:";
 
     private final StringRedisTemplate stringRedisTemplate;
-    private final HttpServletRequest request;
 
     @Around("@annotation(idempotent)")
     public Object around(ProceedingJoinPoint joinPoint, Idempotent idempotent) throws Throwable {
@@ -54,6 +57,9 @@ public class IdempotentAspect {
         if (!idempotent.key().isEmpty()) {
             return idempotent.key();
         }
-        return request.getHeader("X-Idempotency-Key");
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs) {
+            return attrs.getRequest().getHeader("X-Idempotency-Key");
+        }
+        return null;
     }
 }

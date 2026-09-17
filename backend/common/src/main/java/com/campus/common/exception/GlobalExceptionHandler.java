@@ -44,6 +44,16 @@ public class GlobalExceptionHandler {
         return Result.fail(ErrorCode.PARAM_INVALID);
     }
 
+    /**
+     * 保留框架语义状态码（404/405/503 等）。W1 实测教训：无此处理器时，
+     * 网关无路由匹配的 404 会被下方兜底处理器吞成 200+B000001。
+     */
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public Result<Void> handleResponseStatus(org.springframework.web.server.ResponseStatusException e) {
+        log.warn("status exception: {}", e.getMessage());
+        return Result.fail(String.valueOf(e.getStatusCode().value()), e.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     public Result<Void> handleUnknown(Exception e) {
         // 堆栈只落服务端日志，不返回前端

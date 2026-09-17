@@ -94,7 +94,12 @@ public class AuthService {
         }
         log.info("REGISTER_SUCCESS userId={} emailDomain={}", user.getId(),
                 email.substring(email.indexOf('@') + 1));
-        return new LoginVO(issueToken(user), toUserVO(user));
+        // 注册即登录：签发 token 并写会话映射（互踢依赖 active 记录，W1 实测教训）
+        JwtSupport.SignedToken signed = jwtSupport.sign(user.getId(), user.getRole(), user.getSchoolCode());
+        redis.opsForValue().set(CacheKeys.JWT_ACTIVE + user.getId(),
+                signed.jti() + "|" + signed.expiresAt().getEpochSecond(),
+                Duration.ofHours(properties.getJwt().getExpireHours()));
+        return new LoginVO(signed.token(), toUserVO(user));
     }
 
     /**
@@ -197,10 +202,6 @@ public class AuthService {
             return false;
         }
         return properties.getEmail().getAllowedDomains().contains(email.substring(at + 1));
-    }
-
-    private String issueToken(UserAccount user) {
-        return jwtSupport.sign(user.getId(), user.getRole(), user.getSchoolCode()).token();
     }
 
     private void saveLoginLog(Long userId, String account, String ip, String userAgent, String result) {

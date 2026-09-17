@@ -12,7 +12,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 登录（失败锁定 + JWT 签发 + 互踢黑名单）、个人主页、信用分查询与内部回流。
  */
 @SpringBootApplication
-@MapperScan("com.campus.usercredit.mapper")
+@MapperScan({"com.campus.usercredit.mapper", "com.campus.common.outbox"})
 public class UserCreditServiceApplication {
 
     public static void main(String[] args) {
