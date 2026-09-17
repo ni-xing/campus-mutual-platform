@@ -63,8 +63,8 @@ CREATE DATABASE IF NOT EXISTS `admin_db`     DEFAULT CHARACTER SET utf8mb4 COLLA
 
 # --------------------------------------------------------------- user_db
 FILES['10-user_db.sql'] = """-- =============================================================
--- user_db ｜ M1 用户与信用服务 ｜ 3 张表
--- 依据《系统设计》§4.2.t1 / §4.2.10
+-- user_db ｜ M1 用户与信用服务 ｜ 4 张表
+-- 依据《系统设计》§4.2.t1 / §4.2.10 / specs/05-用户与认证
 -- =============================================================
 USE `user_db`;
 
@@ -80,6 +80,8 @@ CREATE TABLE `t_user_account` (
   `status` VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE/BANNED',
   `credit_score` INT NOT NULL DEFAULT 100 COMMENT '信用分[0,200]',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本',
+  `privacy_consent_version` VARCHAR(10) DEFAULT NULL COMMENT '隐私政策版本（F18 同意留痕）',
+  `privacy_consent_time` DATETIME(3) DEFAULT NULL COMMENT '隐私同意勾选时间（F18）',
 """ + AUDIT_COLS + """
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_student_no` (`student_no`),
@@ -116,6 +118,21 @@ CREATE TABLE `t_login_log` (
   KEY `idx_user_created` (`user_id`, `created_time`),
   KEY `idx_ip_created` (`ip`, `created_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='登录流水（保留 1 年，§7.2.4）';
+
+-- ---------- t_user_identity（社交登录绑定预留表，specs/05：本期建表不写逻辑）----------
+CREATE TABLE `t_user_identity` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+""" + SCHOOL_COL + """
+  `user_id` BIGINT NOT NULL COMMENT '本地账号 ID',
+  `idp_type` VARCHAR(20) NOT NULL COMMENT '身份源：LOCAL/QQ/WECHAT/CAS',
+  `openid` VARCHAR(64) NOT NULL COMMENT '身份源侧唯一标识',
+  `unionid` VARCHAR(64) DEFAULT NULL COMMENT '身份源侧主体标识（微信 unionid 预留）',
+  `bound_time` DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3) COMMENT '绑定时间',
+""" + AUDIT_COLS + """
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_idp_openid` (`idp_type`, `openid`),
+  KEY `idx_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='第三方身份绑定（预留）';
 """
 
 # --------------------------------------------------------------- trade_db

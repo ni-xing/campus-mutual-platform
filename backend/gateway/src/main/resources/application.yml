@@ -1,4 +1,5 @@
-# API 网关：路由 + JWT 统一鉴权 + 全局限流（W1 接入 spring-cloud-starter-gateway）
+# API 网关：路由 + JWT 统一鉴权 + 全局限流（specs/05 U-08）
+# SB-01 鉴权 / SB-03 Actuator / 限流 500 QPS 全局 + 60 QPS 单IP（系统设计 §3.5.3）
 server:
   port: 8080
 
@@ -7,11 +8,56 @@ spring:
     name: campus-gateway
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  config:
+    import: optional:nacos:campus-gateway-${spring.profiles.active}.yml
+  cloud:
+    nacos:
+      server-addr: ${NACOS_HOST:127.0.0.1}:8848
+      username: ${NACOS_USER:}
+      password: ${NACOS_PASSWORD:}
+      config:
+        namespace: public
+      discovery:
+        namespace: public
+    gateway:
+      # —— 路由（系统设计 §3.5.5：/api/v1/** 业务路径，/internal/** 网关不暴露）——
+      routes:
+        - id: user-credit
+          uri: lb://user-credit-service
+          predicates:
+            - Path=/api/v1/auth/**,/api/v1/users/**,/api/v1/credits/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 60
+                redis-rate-limiter.burstCapacity: 120
+                key-resolver: "#{@ipKeyResolver}"
+      # —— 全局限流：500 QPS（默认过滤器，全部路由生效）——
+      default-filters:
+        - name: RequestRateLimiter
+          args:
+            redis-rate-limiter.replenishRate: 500
+            redis-rate-limiter.burstCapacity: 1000
+            key-resolver: "#{@globalKeyResolver}"
+
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
+
+# JWT 校验配置（specs/05 U-08；secret 与 M1 同源，env 注入）
+campus:
+  jwt:
+    secret: ${JWT_SECRET:}
+
+# 白名单路径：无需 JWT（注册/登录/健康检查）；其余全部校验
+campus-gateway:
+  auth:
+    whitelist:
+      - /api/v1/auth/register
+      - /api/v1/auth/login
+      - /actuator/health
 
 management:
   endpoints:

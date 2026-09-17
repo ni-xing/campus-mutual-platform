@@ -23,7 +23,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BizException.class)
     public Result<Void> handleBiz(BizException e) {
         log.warn("biz error code={} desc={}", e.getErrorCode().getCode(), e.getMessage());
-        return Result.fail(e.getErrorCode());
+        // extraMsg 为业务方给定的更具体文案；缺省回落错误码注册表 userMsg
+        String msg = e.getExtraMsg() != null ? e.getExtraMsg() : e.getErrorCode().getUserMsg();
+        return Result.fail(e.getErrorCode().getCode(), msg);
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class})

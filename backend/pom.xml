@@ -40,6 +40,7 @@
     <jjwt.version>0.12.6</jjwt.version>
     <redisson.version>3.30.0</redisson.version>
     <knife4j.version>4.5.0</knife4j.version>
+    <logstash-encoder.version>8.0</logstash-encoder.version>
 
     <spring-cloud.version>2024.0.0</spring-cloud.version>
     <spring-cloud-alibaba.version>2023.0.3.2</spring-cloud-alibaba.version>
@@ -85,29 +86,34 @@
         <version>${knife4j.version}</version>
       </dependency>
       <dependency>
+        <groupId>net.logstash.logback</groupId>
+        <artifactId>logstash-logback-encoder</artifactId>
+        <version>${logstash-encoder.version}</version>
+      </dependency>
+      <dependency>
         <groupId>com.campus</groupId>
         <artifactId>campus-common</artifactId>
         <version>${project.version}</version>
       </dependency>
 
-      <!-- ============================================================
-           W1 接入项（本阶段不激活，避免与 W0 空壳编译强耦合）
-           接入前必须先验证版本矩阵：Spring Boot 3.4.5 与
-           Spring Cloud Alibaba 2023.0.3.2 的官方适配组合需实测；
-           备选路径见 docs 的 W0 交付报告风险项 R-01。
-           <dependency>
-             <groupId>org.springframework.cloud</groupId>
-             <artifactId>spring-cloud-dependencies</artifactId>
-             <version>${spring-cloud.version}</version>
-             <type>pom</type><scope>import</scope>
-           </dependency>
-           <dependency>
-             <groupId>com.alibaba.cloud</groupId>
-             <artifactId>spring-cloud-alibaba-dependencies</artifactId>
-             <version>${spring-cloud-alibaba.version}</version>
-             <type>pom</type><scope>import</scope>
-           </dependency>
-           ============================================================ -->
+      <!-- W1 接入：Spring Cloud + Spring Cloud Alibaba（Nacos 注册/配置中心）
+           版本矩阵说明：SCA 2023.0.3.2 官方适配 Spring Cloud 2023.0.x / Boot 3.2~3.3，
+           与 Boot 3.4.5 的组合为超配组合（W0 报告 R-01 预案）；W1 首日实跑验证，
+           如运行期不兼容则整体降级 Boot 3.3.x + Spring Cloud 2023.0.x（冻结备选路径） -->
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-dependencies</artifactId>
+        <version>${spring-cloud.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.alibaba.cloud</groupId>
+        <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+        <version>${spring-cloud-alibaba.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 

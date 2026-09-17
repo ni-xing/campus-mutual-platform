@@ -206,6 +206,8 @@ services:
       REDIS_HOST: redis
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       NACOS_HOST: nacos
+      NACOS_USER: ${NACOS_USER}
+      NACOS_PASSWORD: ${NACOS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
     volumes:
       - ../backend/gateway/target/gateway-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
@@ -236,10 +238,15 @@ services:
       REDIS_HOST: redis
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      NACOS_HOST: nacos
+      NACOS_USER: ${NACOS_USER}
+      NACOS_PASSWORD: ${NACOS_PASSWORD}
     volumes:
       - ../backend/user-credit-service/target/user-credit-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
     depends_on:
       mysql:
+        condition: service_healthy
+      nacos:
         condition: service_healthy
     networks:
       campus-net:
@@ -611,11 +618,13 @@ http {
 
 FILES['nginx/conf.d/campus.conf'] = """# 入口配置（dev 版本；prod 增加 443 TLS 终结、HSTS 与 80→443 强制跳转，见《安全设计》§3.2.1）
 # TLS 终结在 Nginx、鉴权在 Gateway（《系统设计》§6.2.1 入口决策）
+#
+# W0 兼容说明：业务容器属 app profile（W1 起启用），campus-gateway 在 W0 阶段不存在。
+# 若用静态 upstream 写死主机名，Nginx 启动时解析失败会直接退出（host not found in upstream）。
+# 因此改用 Docker 内置 DNS（127.0.0.11）+ 变量式 proxy_pass：启动不解析、请求时才解析；
+# gateway 未上线时 /api/ 返回 502，gateway 上线后无需重启自动生效。
 
-upstream campus_gateway {
-    server campus-gateway:8080;
-    keepalive 32;
-}
+resolver 127.0.0.11 valid=10s ipv6=off;
 
 server {
     listen       80;
@@ -632,7 +641,9 @@ server {
     }
 
     location /api/ {
-        proxy_pass         http://campus_gateway;
+        # 变量式 proxy_pass：延迟到请求时解析（配合上方 resolver）
+        set $campus_gateway_upstream http://campus-gateway:8080;
+        proxy_pass         $campus_gateway_upstream;
         proxy_http_version 1.1;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
@@ -651,7 +662,8 @@ server {
 
     # AI 流式接口（SSE）：关闭缓冲，避免流式响应被 Nginx 缓存（§3.1.5 SSE）
     location /api/v1/ai/chat/stream {
-        proxy_pass         http://campus_gateway;
+        set $campus_gateway_upstream http://campus-gateway:8080;
+        proxy_pass         $campus_gateway_upstream;
         proxy_http_version 1.1;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;

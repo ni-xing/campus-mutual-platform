@@ -188,6 +188,8 @@ services:
       REDIS_HOST: redis
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       NACOS_HOST: nacos
+      NACOS_USER: ${NACOS_USER}
+      NACOS_PASSWORD: ${NACOS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
     volumes:
       - ../backend/gateway/target/gateway-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
@@ -218,10 +220,15 @@ services:
       REDIS_HOST: redis
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      NACOS_HOST: nacos
+      NACOS_USER: ${NACOS_USER}
+      NACOS_PASSWORD: ${NACOS_PASSWORD}
     volumes:
       - ../backend/user-credit-service/target/user-credit-service-1.0.0-SNAPSHOT.jar:/app/app.jar:ro
     depends_on:
       mysql:
+        condition: service_healthy
+      nacos:
         condition: service_healthy
     networks:
       campus-net:

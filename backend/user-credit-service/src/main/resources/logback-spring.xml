@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- W1.6 结构化 JSON 日志（系统设计 §8.2.2）：traceId/tenantId 由 MDC 过滤器注入，LogstashEncoder 自动携带 MDC 全字段 -->
+<configuration>
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+  <springProperty scope="context" name="serviceName" source="spring.application.name" defaultValue="unknown"/>
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <timeZone>UTC</timeZone>
+      <customFields>{"service":"${serviceName}"}</customFields>
+      <fieldNames>
+        <timestamp>timestamp</timestamp>
+        <version>[ignore]</version>
+      </fieldNames>
+      <shortenedLoggerNameLength>36</shortenedLoggerNameLength>
+    </encoder>
+  </appender>
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+  <logger name="com.campus" level="DEBUG"/>
+</configuration>
