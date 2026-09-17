@@ -1,13 +1,19 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import SectionView from '../views/SectionView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior() { return { top: 0 } },
   routes: [
     { path: '/', component: () => import('../views/LandingView.vue') },
+    { path: '/market', component: SectionView, props: { secKey: 'market' } },
+    { path: '/lost', component: SectionView, props: { secKey: 'lost' } },
+    { path: '/errand', component: SectionView, props: { secKey: 'errand' } },
+    { path: '/ai', component: SectionView, props: { secKey: 'ai' } },
     { path: '/login', component: () => import('../views/LoginView.vue') },
     { path: '/privacy', component: () => import('../views/PrivacyView.vue') },
-    { path: '/board', component: () => import('../views/HomeView.vue'), meta: { requireAuth: true } },
+    { path: '/me', component: () => import('../views/PersonalView.vue'), meta: { requireAuth: true } },
   ],
 })
 
@@ -15,7 +21,7 @@ const router = createRouter({
 router.beforeEach((to) => {
   const auth = useAuthStore()
   if (to.meta.requireAuth && !auth.token) return '/login'
-  if (to.path === '/login' && auth.token) return '/board'
+  if (to.path === '/login' && auth.token) return '/'
 })
 
 export default router
