@@ -117,11 +117,9 @@ public class OrderService {
         Long userId = UserContextHolder.currentUserId();
         TradeOrder order = requireOrder(orderId);
         requireParticipant(order, userId);
-        // 状态机守卫：乐观锁条件更新（携带 version），0 行即非法流转/并发冲突（AC-5）
-        order.setStatus(OrderStatus.COMPLETED.name());
-        order.setReviewDeadline(LocalDateTime.now().plusDays(7));
-        order.setUpdatedBy("user:" + userId);
-        if (orderMapper.updateById(order) != 1) {
+        // 状态机守卫：仅 FROZEN → COMPLETED 合法，0 行即非法流转/并发冲突（AC-5）
+        if (orderMapper.transition(orderId, OrderStatus.FROZEN.name(), OrderStatus.COMPLETED.name(),
+                LocalDateTime.now().plusDays(7), "user:" + userId) != 1) {
             throw new BizException(ErrorCode.ORDER_STATE_INVALID);
         }
         balanceService.settle(order.getBuyerId(), order.getSellerId(), order.getGoodsPrice(), order.getOrderNo());
@@ -139,9 +137,9 @@ public class OrderService {
         Long userId = UserContextHolder.currentUserId();
         TradeOrder order = requireOrder(orderId);
         requireParticipant(order, userId);
-        order.setStatus(OrderStatus.CANCELLED.name());
-        order.setUpdatedBy("user:" + userId);
-        if (orderMapper.updateById(order) != 1) {
+        // 状态机守卫：仅 FROZEN 可取消（AC-5：完成/取消后的单再操作一律拒绝）
+        if (orderMapper.transition(orderId, OrderStatus.FROZEN.name(), OrderStatus.CANCELLED.name(),
+                null, "user:" + userId) != 1) {
             throw new BizException(ErrorCode.ORDER_STATE_INVALID);
         }
         balanceService.unfreezeForOrder(order.getBuyerId(), order.getGoodsPrice(), order.getOrderNo());

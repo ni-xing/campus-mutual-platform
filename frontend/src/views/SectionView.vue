@@ -19,20 +19,28 @@
             :class="{ on: filter === c.key }"
             @click="filter = c.key"
           >{{ c.label }}</button>
+          <button
+            v-if="secKey === 'market' && categoryChips.length"
+            v-for="c in categoryChips" :key="'cat-' + c.key"
+            class="chip cat"
+            :class="{ on: catFilter === c.key }"
+            @click="catFilter = c.key"
+          >{{ c.label }}</button>
         </div>
 
         <div class="feed">
           <article
             v-for="(p, i) in list"
-            :key="i"
+            :key="(p.demo ? 'demo-' : 'real-') + i"
             class="post pin-in"
-            :class="{ sticky: p.urgent, finished: p.done }"
+            :class="{ sticky: p.urgent, finished: p.done, demo: p.demo }"
             :style="{ animationDelay: Math.min(i, 6) * 0.06 + 's' }"
           >
             <span v-if="p.urgent" class="stamp">急</span>
             <span v-if="p.done" class="stamp done-stamp">{{ doneLabel[secKey] }}</span>
             <span class="kind">{{ p.kind }}</span>
             <h4 :class="{ strike: p.done }">{{ p.title }}</h4>
+            <p v-if="p.desc" class="desc">{{ p.desc }}</p>
             <div class="row">
               <span :class="{ price: p.price }">{{ p.price ? '¥' + p.price : p.left }}</span>
               <span>{{ p.right }}</span>
@@ -47,7 +55,8 @@
         <section class="cta-panel">
           <h3>{{ ctaCopy[secKey] }}</h3>
           <p>贴上去，对面楼的人就能看到。留言和交割都在楼里完成，不抽成。</p>
-          <router-link class="btn yellow cta-btn" to="/login?mode=register">贴一张布告</router-link>
+          <button v-if="secKey === 'market' && auth.token" class="btn yellow cta-btn" @click="openPublish">贴一张布告</button>
+          <router-link v-else class="btn yellow cta-btn" to="/login?mode=register">贴一张布告</router-link>
         </section>
 
         <section class="side-card">
@@ -77,15 +86,51 @@
       </aside>
     </div>
 
-    <p class="tip">演示数据 · W2+ 接入真实接口后替换</p>
+    <p class="tip">{{ tipText }}</p>
+
+    <!-- 发布布告弹层（仅 market） -->
+    <div v-if="showPublish" class="mask" @click.self="showPublish = false">
+      <form class="pub-card pin-in" @submit.prevent="submitPublish">
+        <h3 class="hand">贴一张布告</h3>
+        <p class="pub-sub">写清楚是什么、几成新、多少钱，等人来搭把手。</p>
+        <label class="field">
+          <span>标题（≤ 50 字）</span>
+          <input v-model.trim="form.title" maxlength="50" required placeholder="例：《数据结构与算法》第九版，9 成新" />
+        </label>
+        <div class="pub-row">
+          <label class="field">
+            <span>价格（¥）</span>
+            <input v-model.number="form.price" type="number" min="0.01" max="9999" step="0.01" required placeholder="15" />
+          </label>
+          <label class="field">
+            <span>分类</span>
+            <select v-model="form.category">
+              <option v-for="c in categoryChips" :key="c.key" :value="c.key">{{ c.label }}</option>
+            </select>
+          </label>
+        </div>
+        <label class="field">
+          <span>描述（≤ 500 字，可不填）</span>
+          <textarea v-model.trim="form.description" maxlength="500" rows="3" placeholder="成色、自取地点、能不能小刀……"></textarea>
+        </label>
+        <p v-if="pubErr" class="pub-err">{{ pubErr }}</p>
+        <div class="pub-actions">
+          <button type="button" class="btn-ghost" @click="showPublish = false">先不贴</button>
+          <button type="submit" class="btn yellow" :disabled="publishing">{{ publishing ? '贴上去…' : '贴上去' }}</button>
+        </div>
+      </form>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { secs, posts, sideNotes } from '../data/posts'
+import { api } from '../api'
+import { useAuthStore } from '../stores/auth'
 
 const props = defineProps({ secKey: { type: String, required: true } })
+const auth = useAuthStore()
 
 const info = computed(() => secs[props.secKey])
 const kindName = computed(() => secs[props.secKey].name)
@@ -96,6 +141,16 @@ const chips = [
   { key: 'done', label: '已完结' },
 ]
 const filter = ref('all')
+const catFilter = ref('all')
+
+const categoryChips = [
+  { key: 'all', label: '全部分类' },
+  { key: 'BOOK', label: '教材书籍' },
+  { key: 'DIGITAL', label: '数码电器' },
+  { key: 'DAILY', label: '生活日用' },
+  { key: 'SPORT', label: '运动健身' },
+  { key: 'OTHER', label: '其他' },
+]
 
 const doneLabel = {
   market: '已出',
@@ -121,15 +176,100 @@ const creditBoard = [
   { name: '李同学', building: '2 号楼', deals: 7, rate: '96%' },
 ]
 
-const activeList = computed(() => posts.filter((p) => p.kind === kindName.value && !p.done))
-const list = computed(() =>
-  posts.filter((p) => {
-    if (p.kind !== kindName.value) return false
+// ---------- market 真实数据（W2）：失败/未登录自动回落演示数据 ----------
+const realGoods = ref([])
+const realLoaded = ref(false)
+
+function relTime(iso) {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return '刚刚'
+  if (m < 60) return m + ' 分钟前'
+  if (m < 60 * 24) return Math.floor(m / 60) + ' 小时前'
+  if (m < 60 * 24 * 2) return '昨天'
+  return Math.floor(m / 60 / 24) + ' 天前'
+}
+
+async function loadGoods() {
+  if (props.secKey !== 'market' || !auth.token) return
+  try {
+    const res = await api('/api/v1/goods?pageNo=1&pageSize=20')
+    realGoods.value = (res.data?.records || []).map((g) => ({
+      title: g.title,
+      desc: g.description || '',
+      price: Number(g.price),
+      kind: '二手集市',
+      cat: g.category,
+      left: '布告栏在售 · 可下单',
+      right: relTime(g.createdTime),
+    }))
+    realLoaded.value = true
+  } catch { /* 服务未起/网络异常 → 演示数据兜底 */ }
+}
+
+onMounted(loadGoods)
+
+// market 的 demo 帖默认视为已出，避免和真实在售混淆
+const demoPosts = computed(() =>
+  posts
+    .filter((p) => p.kind === kindName.value)
+    .map((p) => ({ ...p, demo: true, done: props.secKey === 'market' ? true : p.done }))
+)
+
+const activeList = computed(() => list.value.filter((p) => !p.done))
+
+const list = computed(() => {
+  const base = props.secKey === 'market' && realLoaded.value ? [...realGoods.value, ...demoPosts.value] : posts.filter((p) => p.kind === kindName.value)
+  return base.filter((p) => {
+    if (props.secKey === 'market' && realLoaded.value && p.cat && catFilter.value !== 'all' && p.cat !== catFilter.value) return false
     if (filter.value === 'open') return !p.done
     if (filter.value === 'done') return p.done
     return true
   })
-)
+})
+
+const tipText = computed(() => {
+  if (props.secKey === 'market' && realLoaded.value) return '上面的帖子来自布告栏实时数据 · 带灰底的为演示数据'
+  return '演示数据 · 登录后 market 板块展示真实商品'
+})
+
+// ---------- 发布布告（market） ----------
+const showPublish = ref(false)
+const publishing = ref(false)
+const pubErr = ref('')
+const form = reactive({ title: '', price: null, category: 'BOOK', description: '' })
+
+function openPublish() {
+  pubErr.value = ''
+  showPublish.value = true
+}
+
+async function submitPublish() {
+  if (!form.title || !form.price || form.price <= 0) {
+    pubErr.value = '标题和价格得填好（价格要大于 0）'
+    return
+  }
+  publishing.value = true
+  pubErr.value = ''
+  try {
+    await api('/api/v1/goods', 'POST', {
+      title: form.title,
+      price: Number(form.price),
+      category: form.category,
+      description: form.description || null,
+    })
+    showPublish.value = false
+    form.title = ''
+    form.price = null
+    form.description = ''
+    await loadGoods()
+  } catch (e) {
+    pubErr.value = e.message
+  } finally {
+    publishing.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -158,7 +298,7 @@ const list = computed(() =>
 }
 
 /* ---------- 主栏 ---------- */
-.chips { display: flex; gap: 8px; margin-bottom: 16px; }
+.chips { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
 .chip {
   padding: 5px 14px; border-radius: 16px;
   border: 1.5px solid var(--line); background: #fff;
@@ -170,6 +310,7 @@ const list = computed(() =>
   background: var(--highlight); border-color: var(--highlight-deep);
   color: var(--charcoal); font-weight: 700;
 }
+.chip.cat { border-style: dashed; }
 
 .feed { display: flex; flex-direction: column; gap: 12px; }
 .post.finished { opacity: .68; }
@@ -178,6 +319,8 @@ const list = computed(() =>
   border-color: var(--board); color: var(--board);
   transform: rotate(-6deg);
 }
+.post.demo { background-image: linear-gradient(rgba(0,0,0,.018) 1px, transparent 1px); background-size: 100% 3px; }
+.post .desc { font-size: 12.5px; color: var(--muted); margin: 2px 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .empty { font-size: 13px; color: var(--muted); text-align: center; padding: 18px 0; }
 
 /* ---------- 侧栏 ---------- */
@@ -193,7 +336,7 @@ const list = computed(() =>
 }
 .cta-panel h3 { font-family: var(--font-hand); font-size: 19px; margin-bottom: 6px; }
 .cta-panel p { font-size: 12.5px; color: #C9D6CE; margin-bottom: 14px; }
-.cta-btn { width: auto; padding: 8px 20px; font-size: 14px; }
+.cta-btn { width: auto; padding: 8px 20px; font-size: 14px; border: none; cursor: pointer; }
 
 .side-card {
   background: #fff;
@@ -236,6 +379,28 @@ const list = computed(() =>
 .howto li::marker { color: var(--ink); font-weight: 700; }
 
 .tip { font-size: 12px; color: var(--muted); margin-top: 22px; }
+
+/* ---------- 发布弹层 ---------- */
+.mask {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(30, 30, 26, .45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.pub-card {
+  background: #fff; border-radius: 14px;
+  border: 1.5px solid var(--line);
+  box-shadow: 0 10px 30px rgba(30, 30, 26, .18);
+  width: 420px; max-width: 100%;
+  padding: 22px 22px 18px;
+}
+.pub-card h3 { font-size: 20px; margin-bottom: 4px; }
+.pub-sub { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+.pub-row { display: flex; gap: 10px; }
+.pub-row .field { flex: 1; }
+.pub-row input, .pub-row select { width: 100%; }
+.pub-err { font-size: 12.5px; color: var(--pin); margin: 8px 0 0; }
+.pub-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
 
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {

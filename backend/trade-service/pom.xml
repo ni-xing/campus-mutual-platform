@@ -62,6 +62,11 @@
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-openfeign</artifactId>
     </dependency>
+    <!-- OpenFeign lb:// 需要 loadbalancer（SCA 2023.0.3.2 的 nacos-discovery 不再传递携带） -->
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+    </dependency>
     <!-- W1.6：logstash-logback-encoder（JSON 日志，系统设计 §8.2.2） -->
     <dependency>
       <groupId>net.logstash.logback</groupId>
