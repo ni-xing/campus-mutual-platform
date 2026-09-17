@@ -1,0 +1,228 @@
+/* ============================================================
+   搭把手 · 布告栏设计系统（对应 docs/design/设计方案.md）
+   视觉主张：宿舍楼下的布告栏 —— 方格稿纸底、便签、图钉、墨水蓝
+   ============================================================ */
+
+:root {
+  --paper: #FBF9F3;
+  --grid: rgba(90, 140, 110, .14);
+  --ink: #24418F;
+  --ink-deep: #1A2F6B;
+  --highlight: #FFD84D;
+  --highlight-deep: #C9A916;
+  --pin: #D9432F;
+  --charcoal: #2B2A24;
+  --board: #33544B;
+  --muted: #6E6A5E;
+  --line: #E4E0D4;
+  --font-hand: "LXGW WenKai Screen", "Kaiti SC", "KaiTi", serif;
+  --font-body: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-body);
+  color: var(--charcoal);
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 28px 28px;
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* ---------- 便签卡片（核心组件） ---------- */
+.card {
+  position: relative;
+  background: #fff;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 3px 10px rgba(43, 42, 36, .07);
+}
+
+/* 大便签：登录 / 注册 / 政策页用的主卡 */
+.card-note {
+  position: relative;
+  background: #FFFDF6;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  padding: 26px 22px 22px;
+  box-shadow: 0 6px 16px rgba(43, 42, 36, .12);
+}
+.card-note::before { /* 顶部图钉 */
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  margin-left: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #F08A76, var(--pin) 62%, #8E2417);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, .4);
+}
+
+/* 布告流帖子卡 */
+.post {
+  position: relative;
+  background: #fff;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13px;
+}
+.post.sticky { /* 失物急帖：便利贴黄 */
+  background: var(--highlight);
+  border-color: var(--highlight-deep);
+  transform: rotate(-.8deg);
+}
+.post .stamp { /* 急章 */
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  border: 2px solid var(--pin);
+  color: var(--pin);
+  font-family: var(--font-hand);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 5px;
+  border-radius: 4px;
+  transform: rotate(9deg);
+  opacity: .85;
+}
+.post .kind {
+  font-size: 11px;
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.post h4 {
+  font-size: 14.5px;
+  margin: 3px 0 2px;
+  font-weight: 600;
+}
+.post .row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.post .price {
+  color: var(--pin);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+/* ---------- 按钮 ---------- */
+.btn {
+  width: 100%;
+  padding: 11px;
+  border: 1.5px solid var(--ink-deep);
+  border-radius: 10px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  box-shadow: 0 3px 0 var(--ink-deep);
+  transition: transform .12s, box-shadow .12s, background .12s;
+}
+.btn:hover:not(:disabled) { background: var(--ink-deep); }
+.btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink-deep); }
+.btn:disabled { background: #B4AFA0; border-color: #9B968A; box-shadow: none; cursor: not-allowed; }
+
+.btn.yellow {
+  background: var(--highlight);
+  color: var(--charcoal);
+  border-color: var(--highlight-deep);
+  box-shadow: 0 3px 0 var(--highlight-deep);
+}
+.btn.yellow:hover:not(:disabled) { background: #E8C93F; }
+.btn.yellow:active:not(:disabled) { box-shadow: 0 1px 0 var(--highlight-deep); }
+.btn.yellow:disabled { background: #E8E2CF; border-color: #CFC9B4; box-shadow: none; color: #9B968A; }
+
+.btn-ghost {
+  background: #fff;
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  box-shadow: 0 3px 0 rgba(36, 65, 143, .35);
+}
+.btn-ghost:hover:not(:disabled) { background: #EAF0FB; }
+
+/* ---------- 表单 ---------- */
+.field { margin-bottom: 14px; }
+.field label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 5px;
+  color: var(--muted);
+}
+.field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 14px;
+  font-family: var(--font-body);
+  color: var(--charcoal);
+}
+.field input:focus {
+  outline: none;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(36, 65, 143, .12);
+}
+.field input::placeholder { color: #B4AFA0; }
+
+/* ---------- 状态与链接 ---------- */
+.err {
+  color: var(--pin);
+  font-size: 13px;
+  margin-bottom: 10px;
+  background: #FBEAE7;
+  border: 1px dashed var(--pin);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.ok {
+  color: var(--board);
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.link { font-size: 13px; color: var(--ink); font-weight: 600; }
+
+/* 手写感标题 / 文本 */
+.hand { font-family: var(--font-hand); }
+.page-title {
+  font-family: var(--font-hand);
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.page-sub { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+
+/* 钉入入场动画（一次编排） */
+@keyframes pin-in {
+  from { opacity: 0; transform: translateY(-22px) scale(1.08); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.pin-in { animation: pin-in .5s cubic-bezier(.2, .9, .3, 1.2) backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pin-in { animation: none; }
+  * { transition: none !important; }
+}

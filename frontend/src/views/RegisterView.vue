@@ -1,6 +1,8 @@
 <template>
-  <div class="card">
-    <h2 class="title">注册</h2>
+  <div class="container-narrow">
+    <div class="card-note pin-in">
+    <h2 class="page-title">新同学，<span class="mark">留个名</span>吧。</h2>
+    <p class="page-sub">校园邮箱验证身份，楼栋就是信用。</p>
     <p v-if="err" class="err">{{ err }}</p>
     <div class="field">
       <label>学号（8~12 位数字）</label>
@@ -20,11 +22,13 @@
     </div>
     <label class="agree">
       <input v-model="agree" type="checkbox" />
-      我已阅读并同意
-      <router-link class="link" to="/privacy" target="_blank">《用户协议与隐私政策》</router-link>
+      <span>我已阅读并同意
+        <router-link class="link" to="/privacy" target="_blank">《用户协议与隐私政策》</router-link>
+      </span>
     </label>
-    <button class="btn" :disabled="loading" @click="submit">{{ loading ? '注册中…' : '注册并登录' }}</button>
-    <p class="foot">已有账号？<router-link class="link" to="/login">去登录</router-link></p>
+    <button class="btn yellow" :disabled="loading" @click="submit">{{ loading ? '注册中…' : '注册并登录' }}</button>
+    <p class="foot">已经有账号了？<router-link class="link" to="/login">去登录</router-link></p>
+    </div>
   </div>
 </template>
 
@@ -49,7 +53,7 @@ async function submit() {
   try {
     const res = await api('/api/v1/auth/register', 'POST', { ...form, privacyAgreed: agree.value })
     auth.setSession(res.data.token, res.data.user)
-    router.replace('/')
+    router.replace('/board')
   } catch (e) {
     err.value = e.message
   } finally {
@@ -59,7 +63,21 @@ async function submit() {
 </script>
 
 <style scoped>
-.title { font-size: 18px; margin-bottom: 16px; }
-.agree { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 14px; }
-.foot { margin-top: 14px; font-size: 13px; color: #666; }
+.mark {
+  background: var(--highlight);
+  padding: 0 8px;
+  display: inline-block;
+  transform: rotate(-1.2deg);
+  box-shadow: 2px 3px 0 rgba(43, 42, 36, .18);
+}
+.agree {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 14px;
+  color: var(--charcoal);
+}
+.agree input { margin-top: 4px; accent-color: var(--ink); }
+.foot { margin-top: 14px; font-size: 13px; color: var(--muted); }
 </style>

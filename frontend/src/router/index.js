@@ -4,9 +4,10 @@ import { useAuthStore } from '../stores/auth'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    { path: '/', component: () => import('../views/LandingView.vue') },
     { path: '/login', component: () => import('../views/LoginView.vue') },
     { path: '/privacy', component: () => import('../views/PrivacyView.vue') },
-    { path: '/', component: () => import('../views/HomeView.vue'), meta: { requireAuth: true } },
+    { path: '/board', component: () => import('../views/HomeView.vue'), meta: { requireAuth: true } },
   ],
 })
 
@@ -14,7 +15,7 @@ const router = createRouter({
 router.beforeEach((to) => {
   const auth = useAuthStore()
   if (to.meta.requireAuth && !auth.token) return '/login'
-  if (to.path === '/login' && auth.token) return '/'
+  if (to.path === '/login' && auth.token) return '/board'
 })
 
 export default router
