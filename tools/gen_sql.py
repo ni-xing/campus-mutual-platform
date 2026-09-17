@@ -609,21 +609,24 @@ MYSQL_CMD="mysql -uroot -p${MYSQL_ROOT_PASSWORD}"
 protect() {
   local user="$1"
   local db="$2"
-  local table="$3"
-  if [ -z "$4" ]; then
+  if [ -z "$3" ]; then
     return 0
   fi
+  # 注意：账号授权是库级（ON db.*），REVOKE 必须同粒度——按表级 REVOKE 会报
+  # ERROR 1147 且 set -e 中断整个 init（曾导致 20-seed-data.sql 未执行）。
+  # 做法：整库收回全部权限后按最小集重授（不含 DELETE）。
   ${MYSQL_CMD} <<EOSQL
-REVOKE DELETE ON \\`${db}\\`.\\`${table}\\` FROM '${user}'@'%';
+REVOKE ALL PRIVILEGES ON \\`${db}\\`.* FROM '${user}'@'%';
+GRANT SELECT, INSERT, UPDATE ON \\`${db}\\`.* TO '${user}'@'%';
 FLUSH PRIVILEGES;
 EOSQL
-  echo "[audit-protect] ${db}.${table} -> ${user} DELETE revoked"
+  echo "[audit-protect] ${db} -> ${user} DELETE revoked"
 }
 
-protect campus_admin  admin_db  t_audit_record   "${DB_PWD_ADMIN}"
-protect campus_trade  trade_db  t_balance_flow   "${DB_PWD_TRADE}"
-protect campus_ai     ai_db     t_ai_tool_call   "${DB_PWD_AI}"
-protect campus_errand errand_db t_grab_record    "${DB_PWD_ERRAND}"
+protect campus_admin  admin_db   "${DB_PWD_ADMIN}"
+protect campus_trade  trade_db   "${DB_PWD_TRADE}"
+protect campus_ai     ai_db      "${DB_PWD_AI}"
+protect campus_errand errand_db  "${DB_PWD_ERRAND}"
 
 echo "[audit-protect] done"
 """
@@ -650,18 +653,20 @@ INSERT INTO `t_sensitive_word` (`word`, `level`, `status`, `created_by`) VALUES
 
 USE `user_db`;
 
--- 管理端种子账号（role=ADMIN；密码摘要对应明文见 .env.example，登录后强制修改 + TOTP 绑定）
+-- 管理端种子账号（role=ADMIN；密码摘要对应明文见 .env.example 的 SEED_ADMIN_PASSWORD，登录后强制修改）
+-- 摘要由真实明文 Admin@Campus2026 生成（BCrypt cost 10，$2b 前缀 Spring Security 兼容）
 INSERT INTO `t_user_account`
   (`school_code`, `student_no`, `email`, `password_hash`, `nickname`, `role`, `status`, `credit_score`, `created_by`)
 VALUES
-  ('CAMPUS-MAIN', 'ADMIN0001', 'admin@campus.edu', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+  ('CAMPUS-MAIN', 'ADMIN0001', 'admin@campus.edu', '$2b$10$qTIk.Wra6ipTuaa04AE82exBRdvj47TADZC1hbhbjJ0sNxV9dGKJS',
    '平台管理员', 'ADMIN', 'ACTIVE', 100, 'seed');
 
 USE `trade_db`;
 
--- 演示用余额账户（对应上面的 ADMIN 账号，id 由 user_db 自增决定，此处以 1 假定本地首次初始化）
+-- 演示用余额账户（user_id 用子查询动态绑定 ADMIN 账号，不假定自增=1）
 INSERT INTO `t_balance_account` (`school_code`, `user_id`, `balance`, `frozen`, `created_by`)
-VALUES ('CAMPUS-MAIN', 1, 100.00, 0.00, 'seed');
+SELECT 'CAMPUS-MAIN', `id`, 100.00, 0.00, 'seed'
+  FROM `user_db`.`t_user_account` WHERE `student_no` = 'ADMIN0001';
 """
 
 count = 0

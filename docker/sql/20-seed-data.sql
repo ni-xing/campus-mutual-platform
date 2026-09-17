@@ -17,15 +17,17 @@ INSERT INTO `t_sensitive_word` (`word`, `level`, `status`, `created_by`) VALUES
 
 USE `user_db`;
 
--- 管理端种子账号（role=ADMIN；密码摘要对应明文见 .env.example，登录后强制修改 + TOTP 绑定）
+-- 管理端种子账号（role=ADMIN；密码摘要对应明文见 .env.example 的 SEED_ADMIN_PASSWORD，登录后强制修改）
+-- 摘要由真实明文 Admin@Campus2026 生成（BCrypt cost 10，$2b 前缀 Spring Security 兼容）
 INSERT INTO `t_user_account`
   (`school_code`, `student_no`, `email`, `password_hash`, `nickname`, `role`, `status`, `credit_score`, `created_by`)
 VALUES
-  ('CAMPUS-MAIN', 'ADMIN0001', 'admin@campus.edu', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+  ('CAMPUS-MAIN', 'ADMIN0001', 'admin@campus.edu', '$2b$10$qTIk.Wra6ipTuaa04AE82exBRdvj47TADZC1hbhbjJ0sNxV9dGKJS',
    '平台管理员', 'ADMIN', 'ACTIVE', 100, 'seed');
 
 USE `trade_db`;
 
--- 演示用余额账户（对应上面的 ADMIN 账号，id 由 user_db 自增决定，此处以 1 假定本地首次初始化）
+-- 演示用余额账户（user_id 用子查询动态绑定 ADMIN 账号，不假定自增=1）
 INSERT INTO `t_balance_account` (`school_code`, `user_id`, `balance`, `frozen`, `created_by`)
-VALUES ('CAMPUS-MAIN', 1, 100.00, 0.00, 'seed');
+SELECT 'CAMPUS-MAIN', `id`, 100.00, 0.00, 'seed'
+  FROM `user_db`.`t_user_account` WHERE `student_no` = 'ADMIN0001';
