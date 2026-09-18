@@ -21,17 +21,22 @@ public interface BalanceAccountMapper extends BaseMapper<BalanceAccount> {
             + "WHERE user_id = #{userId} AND deleted = 0 AND balance >= #{amount}")
     int freeze(@Param("userId") Long userId, @Param("amount") BigDecimal amount);
 
-    /** 结算扣减（买家）：冻结额划走，同时累加交易积分 */
-    @Update("UPDATE t_balance_account SET frozen = frozen - #{amount}, points = points + #{points}, "
+    /** 结算扣减（买家）：冻结额划走（守卫 frozen >= amount；积分另行 addPoints，避免语义耦合） */
+    @Update("UPDATE t_balance_account SET frozen = frozen - #{amount}, "
             + "version = version + 1, updated_time = NOW(3) "
             + "WHERE user_id = #{userId} AND deleted = 0 AND frozen >= #{amount}")
-    int settleDeduct(@Param("userId") Long userId, @Param("amount") BigDecimal amount, @Param("points") int points);
-
-    /** 收款入账（卖家）：冻结外的净增，同时累加交易积分 */
+    int settleDeduct(@Param("userId") Long userId, @Param("amount") BigDecimal amount);
+    /** 收款入账（卖家）：余额净增 + 交易积分（无守卫条件，卖家收钱不该被冻结额挡住） */
     @Update("UPDATE t_balance_account SET balance = balance + #{amount}, points = points + #{points}, "
             + "version = version + 1, updated_time = NOW(3) "
             + "WHERE user_id = #{userId} AND deleted = 0")
     int income(@Param("userId") Long userId, @Param("amount") BigDecimal amount, @Param("points") int points);
+
+    /** 积分累加（买家结算后单独加，避免与冻结额守卫共用一条 UPDATE 造成语义耦合） */
+    @Update("UPDATE t_balance_account SET points = points + #{points}, "
+            + "version = version + 1, updated_time = NOW(3) "
+            + "WHERE user_id = #{userId} AND deleted = 0")
+    int addPoints(@Param("userId") Long userId, @Param("points") int points);
 
     /** 解冻退款（取消）：冻结额 → 可用余额 */
     @Update("UPDATE t_balance_account SET frozen = frozen - #{amount}, balance = balance + #{amount}, "

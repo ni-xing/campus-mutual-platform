@@ -1,2 +1,0 @@
-To https://github.com/ni-xing/campus-mutual-platform.git
-   9675e12..e10d3dc  main -> main

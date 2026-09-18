@@ -2,7 +2,6 @@ package com.campus.trade.controller;
 
 import com.campus.common.dto.PageResponse;
 import com.campus.common.dto.Result;
-import com.campus.common.idempotent.Idempotent;
 import com.campus.trade.dto.OrderCreateRequest;
 import com.campus.trade.dto.OrderVO;
 import com.campus.trade.dto.ReviewCreateRequest;
@@ -25,7 +24,13 @@ import java.util.List;
 /**
  * 订单接口（specs/01 S-04~S-09）。
  *
- * <p>下单为资金类操作，强制 @Idempotent（X-Idempotency-Key），DB uk_idem 为最终防线。
+ * <p>幂等策略：下单/评价**不在 Controller 挂 {@code @Idempotent}**——切面只返回
+ * C000004「处理中」而拿不到原结果，与"同键重试返回同一单"语义冲突。改由业务层
+ * 按业务键查重并返回原结果（幂等键本身落在 uk 约束上）：
+ * <ul>
+ *   <li>下单：X-Idempotency-Key → t_trade_order.uk_idem 预检，命中即返回原单</li>
+ *   <li>评价：uk_order_rater 预检，命中抛 A020003「你已评价过本单」</li>
+ * </ul>
  * 状态机：FROZEN →（确认取货）COMPLETED /（取消）CANCELLED。
  */
 @RestController
@@ -37,13 +42,17 @@ public class OrderController {
     private final ReviewService reviewService;
 
     @PostMapping
-    @Idempotent(message = "下单处理中，请勿重复提交")
     public Result<OrderVO> create(@Valid @RequestBody OrderCreateRequest req,
                                   @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey) {
         return Result.ok(orderService.create(req, idempotencyKey));
     }
 
-    @GetMapping
+    /**
+     * 我的订单列表。**必须显式声明字面量路径 {@code /mine}**：若只用根路径 {@code @GetMapping}，
+     * 前端的 {@code GET /orders/mine} 会被 {@code @GetMapping("/{id}")} 抢先匹配，
+     * {@code "mine"} 转 Long 抛 NumberFormatException → B000001（曾导致订单页整体不可用）。
+     */
+    @GetMapping({"/mine", ""})
     public Result<PageResponse<OrderVO>> myOrders(@RequestParam(required = false) Integer pageNo,
                                                   @RequestParam(required = false) Integer pageSize,
                                                   @RequestParam(defaultValue = "buyer") String role) {
@@ -67,9 +76,8 @@ public class OrderController {
         return Result.ok(orderService.cancel(id));
     }
 
-    /** 评价（订单完成后 7 天内，双方各一次） */
+    /** 评价（订单完成后 7 天内，双方各一次；重复评价返回 A020003） */
     @PostMapping("/{id}/review")
-    @Idempotent(message = "评价处理中，请勿重复提交")
     public Result<ReviewVO> review(@PathVariable Long id, @Valid @RequestBody ReviewCreateRequest req) {
         return Result.ok(reviewService.create(id, req));
     }

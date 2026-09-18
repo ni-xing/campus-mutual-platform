@@ -109,6 +109,8 @@ public class BalanceService {
 
     /** 冻结买家余额（下单事务内调用；余额不足抛 A020002，AC-2） */
     void freezeForOrder(Long userId, BigDecimal amount, String orderNo) {
+        // 买家可能从未充值：先兜底建户，否则 freeze 更新 0 行会被误报成"余额不足"
+        getOrCreateAccount(userId);
         if (balanceAccountMapper.freeze(userId, amount) != 1) {
             throw new BizException(ErrorCode.BALANCE_NOT_ENOUGH);
         }
@@ -118,14 +120,21 @@ public class BalanceService {
     /** 完成结算：买家冻结划走 + 卖家入账（各得 amount 1% 积分，向下取整；AC-1/S-07） */
     void settle(Long buyerId, Long sellerId, BigDecimal amount, String orderNo) {
         int buyerPoints = amount.multiply(BigDecimal.valueOf(0.01)).setScale(0, java.math.RoundingMode.FLOOR).intValue();
-        if (balanceAccountMapper.settleDeduct(buyerId, amount, buyerPoints) != 1) {
+        if (balanceAccountMapper.settleDeduct(buyerId, amount) != 1) {
             throw new BizException(ErrorCode.SYSTEM_ERROR, "买家结算失败（冻结额异常）");
         }
         insertFlow(buyerId, BalanceFlowType.DEDUCT, amount, 0, "DED-" + orderNo, orderNo, requireAccount(buyerId));
+        // 卖家可能从未充值/查余额，账户尚未懒创建——收款前必须兜底建户，
+        // 否则 income 更新 0 行 → "卖家入账失败"，订单永远无法完成（曾为线上级缺陷）
+        getOrCreateAccount(sellerId);
         if (balanceAccountMapper.income(sellerId, amount, buyerPoints) != 1) {
             throw new BizException(ErrorCode.SYSTEM_ERROR, "卖家入账失败");
         }
         insertFlow(sellerId, BalanceFlowType.INCOME, amount, 1, "INC-" + orderNo, orderNo, requireAccount(sellerId));
+        // 积分独立累加（1% 向下取整；金额 <1 元时积分为 0 属预期）
+        if (buyerPoints > 0) {
+            balanceAccountMapper.addPoints(buyerId, buyerPoints);
+        }
     }
 
     /** 取消解冻：冻结额原路退回买家（AC-4） */
