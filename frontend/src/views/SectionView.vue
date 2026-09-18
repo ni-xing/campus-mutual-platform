@@ -45,6 +45,12 @@
               <span :class="{ price: p.price }">{{ p.price ? '¥' + p.price : p.left }}</span>
               <span>{{ p.right }}</span>
             </div>
+            <div v-if="!p.demo && !p.done" class="post-actions">
+              <button class="btn yellow sm" :disabled="buyingId === p.id" @click="buy(p)">
+                {{ buyingId === p.id ? '下单中…' : '我要了（模拟支付）' }}
+              </button>
+              <span class="bal-hint">余额 ¥{{ balanceText }}</span>
+            </div>
           </article>
           <p v-if="list.length === 0" class="empty">{{ emptyText[filter] }}</p>
         </div>
@@ -196,16 +202,50 @@ async function loadGoods() {
   try {
     const res = await api('/api/v1/goods?pageNo=1&pageSize=20')
     realGoods.value = (res.data?.records || []).map((g) => ({
+      id: g.id,
       title: g.title,
       desc: g.description || '',
       price: Number(g.price),
       kind: '二手集市',
       cat: g.category,
+      sellerId: g.sellerId,
       left: '布告栏在售 · 可下单',
       right: relTime(g.createdTime),
     }))
     realLoaded.value = true
   } catch { /* 服务未起/网络异常 → 演示数据兜底 */ }
+  await loadBalance()
+}
+
+// ---------- 下单（模拟支付：下单即冻结余额） ----------
+const buyingId = ref(null)
+const balance = ref(0)
+const balanceText = computed(() => {
+  const b = Number(balance.value ?? 0)
+  return b % 1 === 0 ? String(b) : b.toFixed(2)
+})
+
+async function loadBalance() {
+  if (!auth.token) return
+  try {
+    const res = await api('/api/v1/trade/balance')
+    balance.value = Number(res.data?.balance ?? 0)
+  } catch { /* 静默 */ }
+}
+
+async function buy(goods) {
+  if (!window.confirm(`确认买下「${goods.title}」？¥${goods.price} 将从余额冻结（模拟支付）`)) return
+  buyingId.value = goods.id
+  try {
+    await api('/api/v1/orders', 'POST', { goodsId: goods.id }, {
+      'X-Idempotency-Key': 'web-order-' + goods.id + '-' + Date.now(),
+    })
+    await loadGoods()
+  } catch (e) {
+    window.alert(e.message)
+  } finally {
+    buyingId.value = null
+  }
 }
 
 onMounted(loadGoods)
@@ -321,6 +361,9 @@ async function submitPublish() {
 }
 .post.demo { background-image: linear-gradient(rgba(0,0,0,.018) 1px, transparent 1px); background-size: 100% 3px; }
 .post .desc { font-size: 12.5px; color: var(--muted); margin: 2px 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.post-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.post-actions .sm { padding: 5px 13px; font-size: 12.5px; }
+.bal-hint { font-size: 12px; color: var(--muted); }
 .empty { font-size: 13px; color: var(--muted); text-align: center; padding: 18px 0; }
 
 /* ---------- 侧栏 ---------- */

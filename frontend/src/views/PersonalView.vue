@@ -28,6 +28,11 @@
     </div>
     <p v-if="balance.frozen > 0" class="frozen-tip">另有 ¥{{ balance.frozen }} 在交易冻结中（下单后未完成/未取消）</p>
 
+    <router-link class="orders-entry" to="/orders">
+      <span class="oe-left"><b>我经手的单子</b><small>待取货 {{ pendingCount }} 条 · 确认取货 / 取消退款 / 评价</small></span>
+      <span class="oe-arrow">→</span>
+    </router-link>
+
     <!-- 模拟充值（方案 B：点击即到账） -->
     <section class="recharge">
       <h4 class="hand">余额中心 <span class="env-tag">模拟环境</span></h4>
@@ -61,6 +66,7 @@ const creditClass = computed(() => {
 // ---------- 余额 / 积分 / 在售 ----------
 const balance = ref({})
 const sellingCount = ref(0)
+const pendingCount = ref(0)
 const recharging = ref(false)
 const reMsg = ref('')
 const reErr = ref(false)
@@ -78,6 +84,10 @@ async function loadWallet() {
   try {
     const res = await api('/api/v1/goods/mine?pageNo=1&pageSize=1')
     sellingCount.value = res.data?.total ?? 0
+  } catch { /* 静默 */ }
+  try {
+    const res = await api('/api/v1/orders/mine?role=buyer&pageNo=1&pageSize=30')
+    pendingCount.value = (res.data?.records || []).filter((o) => o.status === 'FROZEN').length
   } catch { /* 静默 */ }
 }
 
@@ -130,6 +140,16 @@ async function logout() {
 .num.low { color: var(--pin); }
 .lab { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .frozen-tip { font-size: 12px; color: #C9A916; margin: -6px 0 12px; }
+
+.orders-entry {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #fff; border: 1.5px solid var(--line);
+  border-radius: 12px; padding: 13px 16px; margin-bottom: 14px;
+}
+.orders-entry:hover { border-color: var(--ink); text-decoration: none; }
+.oe-left b { font-size: 14.5px; display: block; color: var(--charcoal); }
+.oe-left small { font-size: 12px; color: var(--muted); }
+.oe-arrow { color: var(--ink); font-weight: 700; }
 
 .recharge {
   background: #fff;
